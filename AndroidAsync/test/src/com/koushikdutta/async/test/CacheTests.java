@@ -1,16 +1,18 @@
 package com.koushikdutta.async.test;
 
-import android.test.AndroidTestCase;
+import android.content.res.AssetManager;
+import android.support.test.InstrumentationRegistry;
+import android.support.test.runner.AndroidJUnit4;
 
 import com.koushikdutta.async.AsyncServer;
 import com.koushikdutta.async.AsyncServerSocket;
 import com.koushikdutta.async.ByteBufferList;
 import com.koushikdutta.async.DataEmitter;
 import com.koushikdutta.async.FilteredDataEmitter;
-import com.koushikdutta.async.Util;
 import com.koushikdutta.async.callback.DataCallback;
 import com.koushikdutta.async.http.AsyncHttpClient;
 import com.koushikdutta.async.http.AsyncHttpGet;
+import com.koushikdutta.async.http.AsyncHttpResponse;
 import com.koushikdutta.async.http.HttpDate;
 import com.koushikdutta.async.http.cache.ResponseCacheMiddleware;
 import com.koushikdutta.async.http.server.AsyncHttpServer;
@@ -18,16 +20,25 @@ import com.koushikdutta.async.http.server.AsyncHttpServerRequest;
 import com.koushikdutta.async.http.server.AsyncHttpServerResponse;
 import com.koushikdutta.async.http.server.HttpServerRequestCallback;
 
+import org.junit.Test;
+import org.junit.runner.RunWith;
+
 import java.io.File;
 import java.nio.ByteBuffer;
 import java.util.Date;
 import java.util.concurrent.Semaphore;
 import java.util.concurrent.TimeUnit;
 
+import static android.support.test.InstrumentationRegistry.getContext;
+import static org.junit.Assert.assertEquals;
+import static org.junit.Assert.assertTrue;
+import static org.junit.Assert.fail;
+
 /**
  * Created by koush on 6/13/13.
  */
-public class CacheTests extends AndroidTestCase {
+@RunWith(AndroidJUnit4.class)
+public class CacheTests {
     public void testMaxAgePrivate() throws Exception {
         AsyncHttpClient client = new AsyncHttpClient(AsyncServer.getDefault());
         ResponseCacheMiddleware cache = ResponseCacheMiddleware.addCache(client, new File(getContext().getFilesDir(), "AndroidAsyncTest"), 1024 * 1024 * 10);
@@ -58,6 +69,31 @@ public class CacheTests extends AndroidTestCase {
         finally {
             AsyncServer.getDefault().stop();
             client.getMiddleware().remove(cache);
+        }
+    }
+
+    final static String dataNameAndHash = "6691924d7d24237d3b3679310157d640";
+    @Test
+    public void test304() throws Exception {
+        try {
+            AsyncHttpServer httpServer = new AsyncHttpServer();
+            AsyncServerSocket socket = httpServer.listen(AsyncServer.getDefault(), 0);
+            int port = socket.getLocalPort();
+
+            AssetManager am = InstrumentationRegistry.getTargetContext().getAssets();
+            httpServer.directory(InstrumentationRegistry.getTargetContext(), "/.*?", "");
+
+            AsyncHttpClient client = new AsyncHttpClient(AsyncServer.getDefault());
+            ByteBufferList bb = client.executeByteBufferList(new AsyncHttpGet("http://localhost:" + port + "/" + dataNameAndHash), new AsyncHttpClient.DownloadCallback() {
+                @Override
+                public void onCompleted(Exception e, AsyncHttpResponse source, ByteBufferList result) {
+                    System.out.println(source.headers());
+                }
+            })
+                    .get();
+        }
+        finally {
+            AsyncServer.getDefault().stop();
         }
     }
 

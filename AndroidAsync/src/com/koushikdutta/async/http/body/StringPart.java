@@ -16,4 +16,12 @@ public class StringPart extends StreamPart {
         return new ByteArrayInputStream(value.getBytes());
     }
 
+    public String getValue() {
+        return value;
+    }
+
+    @Override
+    public String toString() {
+        return value;
+    }
 }

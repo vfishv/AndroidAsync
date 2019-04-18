@@ -111,7 +111,10 @@ public class HttpTransportMiddleware extends SimpleMiddleware {
                         DataEmitter emitter;
                         // HEAD requests must not return any data. They still may
                         // return content length, etc, which will confuse the body decoder
-                        if (AsyncHttpHead.METHOD.equalsIgnoreCase(data.request.getMethod())) {
+                        if (!data.request.hasBody()) {
+                            emitter = HttpUtil.EndEmitter.create(socket.getServer(), null);
+                        }
+                        else if (responseIsEmpty(data.response.code())) {
                             emitter = HttpUtil.EndEmitter.create(socket.getServer(), null);
                         }
                         else {
@@ -130,6 +133,10 @@ public class HttpTransportMiddleware extends SimpleMiddleware {
         data.socket.setDataCallback(liner);
         liner.setLineCallback(headerCallback);
         return true;
+    }
+
+    static boolean responseIsEmpty(int code) {
+        return (code >= 100 && code <= 199) || code == 204 || code == 304;
     }
 
     @Override

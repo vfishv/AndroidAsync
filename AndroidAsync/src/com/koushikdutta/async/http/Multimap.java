@@ -1,12 +1,17 @@
 package com.koushikdutta.async.http;
 
 import android.net.Uri;
+import android.text.TextUtils;
+
+import com.koushikdutta.async.util.TaggedList;
 
 import java.net.URLDecoder;
 import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.Iterator;
 import java.util.LinkedHashMap;
 import java.util.List;
+import java.util.Map;
 
 /**
  * Created by koush on 5/27/13.
@@ -26,13 +31,33 @@ public class Multimap extends LinkedHashMap<String, List<String>> implements Ite
         return ret.get(0);
     }
 
-    public void add(String name, String value) {
+    public String getAllString(String name, String delimiter) {
+        List<String> ret = get(name);
+        if (ret == null || ret.size() == 0)
+            return null;
+        StringBuilder builder = new StringBuilder();
+        boolean first = true;
+        for (String value: ret) {
+            if (!first)
+                builder.append(delimiter);
+
+            builder.append(value);
+            first = false;
+        }
+        return builder.toString();
+    }
+
+    public List<String> ensure(String name) {
         List<String> ret = get(name);
         if (ret == null) {
             ret = newList();
             put(name, ret);
         }
-        ret.add(value);
+        return ret;
+    }
+
+    public void add(String name, String value) {
+        ensure(name).add(value);
     }
 
     public void put(String name, String value) {
@@ -55,13 +80,20 @@ public class Multimap extends LinkedHashMap<String, List<String>> implements Ite
     }
 
     public static Multimap parse(String value, String delimiter, boolean unquote, StringDecoder decoder) {
+        return parse(value, delimiter, "=", unquote, decoder);
+    }
+
+    public static Multimap parse(String value, String delimiter, String assigner, boolean unquote, StringDecoder decoder) {
         Multimap map = new Multimap();
         if (value == null)
             return map;
         String[] parts = value.split(delimiter);
         for (String part: parts) {
-            String[] pair = part.split("=", 2);
+            String[] pair = part.split(assigner, 2);
             String key = pair[0].trim();
+            // watch for empty string or trailing delimiter
+            if (TextUtils.isEmpty(key))
+                continue;
             String v = null;
             if (pair.length > 1)
                 v = pair[1];
@@ -84,7 +116,7 @@ public class Multimap extends LinkedHashMap<String, List<String>> implements Ite
         return parse(header, ",", true, null);
     }
 
-    private static final StringDecoder QUERY_DECODER = new StringDecoder() {
+    public static final StringDecoder QUERY_DECODER = new StringDecoder() {
         @Override
         public String decode(String s) {
             return Uri.decode(s);
@@ -95,7 +127,7 @@ public class Multimap extends LinkedHashMap<String, List<String>> implements Ite
         return parse(query, "&", false, QUERY_DECODER);
     }
 
-    private static final StringDecoder URL_DECODER = new StringDecoder() {
+    public static final StringDecoder URL_DECODER = new StringDecoder() {
         @Override
         public String decode(String s) {
             return URLDecoder.decode(s);
@@ -116,5 +148,13 @@ public class Multimap extends LinkedHashMap<String, List<String>> implements Ite
             }
         }
         return ret.iterator();
+    }
+
+    public Map<String, String> toSingleMap() {
+        HashMap<String, String> ret = new HashMap<>();
+        for (String key: keySet()) {
+            ret.put(key, getString(key));
+        }
+        return ret;
     }
 }

@@ -22,15 +22,35 @@ android {
     }
 
     defaultConfig {
-        targetSdkVersion 24
-        minSdkVersion 9
+        targetSdkVersion 28
+        minSdkVersion 14
+
+        testInstrumentationRunner "android.support.test.runner.AndroidJUnitRunner"
     }
 
-    compileSdkVersion project.hasProperty('global_compileSdkVersion') ? global_compileSdkVersion : 25
-    buildToolsVersion project.hasProperty('global_buildToolsVersion') ? global_buildToolsVersion : '25.0.2'
+    compileOptions {
+        sourceCompatibility 1.8
+        targetCompatibility 1.8
+    }
+
+    compileSdkVersion project.hasProperty('global_compileSdkVersion') ? global_compileSdkVersion : 28
+    buildToolsVersion project.hasProperty('global_buildToolsVersion') ? global_buildToolsVersion : '28.0.3'
+
+    dependencies {
+        // this is only necessary to get compilation working for self signed certificates. dependency isn't added.
+        compileOnly group: 'org.bouncycastle', name: 'bcprov-jdk15on', version: '1.60'
+        compileOnly group: 'org.bouncycastle', name: 'bcpkix-jdk15on', version: '1.60'
+
+
+        testImplementation 'junit:junit:4.12'
+        androidTestImplementation 'com.android.support.test:runner:1.0.2'
+        androidTestImplementation 'com.android.support.test.espresso:espresso-core:3.0.2'
+        // for when i wanna test this against gms conscrypt
+        androidTestImplementation 'com.google.android.gms:play-services-base:16.1.0'
+    }
 }
 
 // upload to maven task
-if (System.getenv().I_AM_KOUSH == 'true') {
+if (false && System.getenv().I_AM_KOUSH == 'true') {
   apply from: 'https://raw.githubusercontent.com/koush/mvn-repo/master/maven.gradle'
 }

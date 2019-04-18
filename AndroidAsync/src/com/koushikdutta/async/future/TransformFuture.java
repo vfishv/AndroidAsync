@@ -1,6 +1,13 @@
 package com.koushikdutta.async.future;
 
 public abstract class TransformFuture<T, F> extends SimpleFuture<T> implements FutureCallback<F> {
+    public TransformFuture(F from) {
+        onCompleted(null, from);
+    }
+
+    public TransformFuture() {
+    }
+
     @Override
     public void onCompleted(Exception e, F result) {
         if (isCancelled())

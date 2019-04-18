@@ -15,7 +15,6 @@ import com.koushikdutta.async.callback.ConnectCallback;
 import com.koushikdutta.async.callback.DataCallback;
 import com.koushikdutta.async.future.Cancellable;
 import com.koushikdutta.async.future.Future;
-import com.koushikdutta.async.future.FutureCallback;
 import com.koushikdutta.async.future.SimpleFuture;
 import com.koushikdutta.async.http.callback.HttpConnectCallback;
 import com.koushikdutta.async.http.callback.RequestCallback;
@@ -134,7 +133,7 @@ public class AsyncHttpClient {
     private static final String LOGTAG = "AsyncHttp";
     private class FutureAsyncHttpResponse extends SimpleFuture<AsyncHttpResponse> {
         public AsyncSocket socket;
-        public Object scheduled;
+        public Cancellable scheduled;
         public Runnable timeoutRunnable;
 
         @Override
@@ -148,7 +147,7 @@ public class AsyncHttpClient {
             }
 
             if (scheduled != null)
-                mServer.removeAllCallbacks(scheduled);
+                scheduled.cancel();
 
             return true;
         }
@@ -156,7 +155,7 @@ public class AsyncHttpClient {
 
     private void reportConnectedCompleted(FutureAsyncHttpResponse cancel, Exception ex, AsyncHttpResponseImpl response, AsyncHttpRequest request, final HttpConnectCallback callback) {
         assert callback != null;
-        mServer.removeAllCallbacks(cancel.scheduled);
+        cancel.scheduled.cancel();
         boolean complete;
         if (ex != null) {
             request.loge("Connection error", ex);
@@ -273,7 +272,7 @@ public class AsyncHttpClient {
 
                 // 3) on connect, cancel timeout
                 if (cancel.timeoutRunnable != null)
-                    mServer.removeAllCallbacks(cancel.scheduled);
+                    cancel.scheduled.cancel();
 
                 if (ex != null) {
                     reportConnectedCompleted(cancel, ex, null, request, callback);
@@ -328,7 +327,7 @@ public class AsyncHttpClient {
                     return;
                 // 5) after request is sent, set a header timeout
                 if (cancel.timeoutRunnable != null && mHeaders == null) {
-                    mServer.removeAllCallbacks(cancel.scheduled);
+                    cancel.scheduled.cancel();
                     cancel.scheduled = mServer.postDelayed(cancel.timeoutRunnable, getTimeoutRemaining(request));
                 }
 
@@ -392,7 +391,7 @@ public class AsyncHttpClient {
 
                 // 7) on headers, cancel timeout
                 if (cancel.timeoutRunnable != null)
-                    mServer.removeAllCallbacks(cancel.scheduled);
+                    cancel.scheduled.cancel();
 
                 // allow the middleware to massage the headers before the body is decoded
                 request.logv("Received headers:\n" + toString());
@@ -631,26 +630,18 @@ public class AsyncHttpClient {
     public <T> SimpleFuture<T> execute(AsyncHttpRequest req, final AsyncParser<T> parser, final RequestCallback<T> callback) {
         final FutureAsyncHttpResponse cancel = new FutureAsyncHttpResponse();
         final SimpleFuture<T> ret = new SimpleFuture<T>();
-        execute(req, 0, cancel, new HttpConnectCallback() {
-            @Override
-            public void onConnectCompleted(Exception ex, final AsyncHttpResponse response) {
-                if (ex != null) {
-                    invoke(callback, ret, response, ex, null);
-                    return;
-                }
-                invokeConnect(callback, response);
-
-                Future<T> parsed = parser.parse(response)
-                .setCallback(new FutureCallback<T>() {
-                    @Override
-                    public void onCompleted(Exception e, T result) {
-                        invoke(callback, ret, response, e, result);
-                    }
-                });
-
-                // reparent to the new parser future
-                ret.setParent(parsed);
+        execute(req, 0, cancel, (ex, response) -> {
+            if (ex != null) {
+                invoke(callback, ret, response, ex, null);
+                return;
             }
+            invokeConnect(callback, response);
+
+            Future<T> parsed = parser.parse(response);
+            parsed.setCallback((e, result) -> invoke(callback, ret, response, e, result));
+
+            // reparent to the new parser future
+            ret.setParent(parsed);
         });
         ret.setParent(cancel);
         return ret;
